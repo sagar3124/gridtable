@@ -1,0 +1,39 @@
+.row-details:nth-child(odd) {
+  background-color: white;
+}
+
+.row-details:nth-child(even) {
+  background-color: #e6e6e6;
+}
+
+.row-details .row .col {
+  border: 1px solid gray;
+}
+
+.row-heading .col {
+  border: 1px solid gray;
+  background: lightcyan;
+}
+
+.input-field {
+  border: 1px solid lightseagreen;
+  background: lightgray;
+}
+
+.table-img img {
+  width: 60px;
+  height: 60px;
+}
+
+.preloader {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-top: 300px;
+}
+
+.preloader p {
+  font-size: 2rem;
+  margin-top: 12px;
+  padding: 20px;
+}
