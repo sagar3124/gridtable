@@ -2,15 +2,13 @@ import React, { Component } from "react";
 import Row from "react-bootstrap/Row";
 import Col from "react-bootstrap/Col";
 import "./Xtable.css";
-import { Container, Form } from "react-bootstrap";
+import { Container, Form, Table } from "react-bootstrap";
 // preloader
 import Spinner from "react-bootstrap/Spinner";
 import Modal from "react-bootstrap/Modal";
 import Button from "react-bootstrap/Button";
-import { FaEdit } from "react-icons/fa";
-const EditIcon = () => {
-  return <FaEdit />;
-};
+import { FaEdit, FaPlus, FaTrash  } from "react-icons/fa";
+
 export default class ClassTable extends Component {
   constructor() {
     super();
@@ -23,35 +21,73 @@ export default class ClassTable extends Component {
       loading: true,
       //Modal
       show: false,
-      modelitem: [],
+      modelItem: [],
       //Edit
       editMode: false,
       editItem: {},
       editIndex: null,
+
+      // Add
+      addData: {},
+      showAddModal: false,
+      
+      sort: {
+        field: '',
+        order: 'asc'
+      }
     };
   }
 
-  componentDidMount() {
+  async componentDidMount() {
+    // some comment
+
     setTimeout(() => this.setState({ loading: false }), 2000);
-    fetch("http://127.0.0.1:9000/Crud")
+    await fetch("http://127.0.0.1:9000/Crud")
       .then((response) => response.json())
       .then((res) => this.setState({ data: res }));
+
+    // some comment;
   }
 
   handleChange = (event) => {
-    // console.log("1", event.target);
+    // console.log("1", event);
     const { name, value } = event.target;
     // console.log("2", name, value);
     this.setState({ search: { ...this.state.search, [name]: value } });
     // console.log("3", this.state.search);
   };
+  handleSort = (field) => {
+    const { sort } = this.state;
+  
+    // if the clicked field is already the active sort field, reverse the order
+    const order = field === sort.field && sort.order === 'asc' ? 'desc' : 'asc';
+  
+    // update the sort state
+    this.setState({ sort: { field, order } });
+  };
+  
 
   filterData = (itm) => {
-    return itm.filter((item) => {
-      return(
-      item.firstName
-        .toLocaleLowerCase()
-        .includes(this.state.search.firstName.toLocaleLowerCase()) &&
+    const { field, order } = this.state.sort;
+    
+    const sortedData = itm.slice().sort((a, b) => {
+      const aValue = a[field];
+      const bValue = b[field];
+      
+      if (typeof aValue === 'number' && typeof bValue === 'number') {
+        return order === 'asc' ? aValue - bValue : bValue - aValue;
+      } else if (typeof aValue === 'string' && typeof bValue === 'string') {
+        return order === 'asc' ? aValue.localeCompare(bValue) : bValue.localeCompare(aValue);
+      } else {
+        return 0;
+      }
+    });
+  
+    return sortedData.filter((item) => {
+      return (
+        item.firstName
+          .toLocaleLowerCase()
+          .includes(this.state.search.firstName.toLocaleLowerCase()) &&
         item.email
           .toLocaleLowerCase()
           .includes(this.state.search.email.toLocaleLowerCase()) &&
@@ -59,22 +95,21 @@ export default class ClassTable extends Component {
         item.lastName
           .toLocaleLowerCase()
           .includes(this.state.search.lastName.toLocaleLowerCase())
-          );
+      );
     });
   };
+  
 
   handleClose = () => {
     this.setState({ show: false });
   };
 
-  handleShow = (itm) => {
-    this.setState({ modelitem: itm });
-    this.setState({ show: true });
-  };
+  // Edit function
 
-  handleEditShow = (itm, index) => {
-    this.setState({ editItem: { ...itm }, editMode: true, editIndex: index });
-    this.handleShow(itm);
+  handleEditShow = (row, index) => {
+    this.setState({ editItem: { ...row }, editMode: false, editIndex: index });
+    this.setState({ modelItem: row });
+    this.setState({ show: true });
   };
 
   handleEditClose = () => {
@@ -82,23 +117,71 @@ export default class ClassTable extends Component {
     this.handleClose();
   };
 
+  // Add Functions
+
   handleEdit = (event) => {
     const { name, value } = event.target;
     this.setState({ editItem: { ...this.state.editItem, [name]: value } });
   };
 
   handleEditSubmit = () => {
-    const data = [...this.state.data];
-    data[this.state.editIndex] = { ...this.state.editItem };
-    fetch("http://127.0.0.1:9000/Crud")
+    const { data, editIndex, editItem } = this.state;
+    const updatedData = [...data];
+    updatedData[editIndex] = editItem;
+
+    fetch(`http://127.0.0.1:9000/Crud/${editItem._id}`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(editItem),
+    })
       .then((response) => response.json())
-      .then((res) => this.setState({ data: res }));
+      .then((res) => {
+        this.setState({ data: updatedData });
+        this.handleClose();
+      })
+      .catch((error) => console.error(error.message)); // log the error message
   };
+
+  handleAddSubmit = () => {
+    const { data, addData } = this.state;
+    fetch("http://127.0.0.1:9000/Crud", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(addData),
+    })
+      .then((response) => response.json())
+      .then((res) => {
+        this.setState({ data: [...data, res], showAddModal: false });
+      })
+      .catch((error) => console.error(error.message));
+  };
+
+  handleAddChange = (event) => {
+    const { name, value } = event.target;
+    this.setState({ addData: { ...this.state.addData, [name]: value } });
+  };
+
+  handleDelete = (id) => {
+    fetch(`http://127.0.0.1:9000/Crud/${id}`, {
+      method: "DELETE",
+    })
+      .then((response) => response.json())
+      .then((res) => {
+        const filteredData = this.state.data.filter((item) => item._id !== id);
+        this.setState({ data: filteredData });
+      })
+      .catch((error) => console.error(error.message));
+  };
+
   render() {
-    console.log(this.state.data)
-    this.state.data.map(
-    (itm)  => console.log("test",itm.firstName)
-      ) 
+    // console.log(this.state.data)
+    // this.state.data.map(
+    // (itm)  => console.log("test",itm.firstName)
+    //   )
     return (
       <>
         {/*-------------preloader----------------- */}
@@ -180,60 +263,83 @@ export default class ClassTable extends Component {
                       })}
                     </datalist>
                   </div>
+                  <div className="text-right">
+                    <Button
+                      variant="success"
+                      onClick={() => this.setState({ showAddModal: true })}
+                    >
+                      <FaPlus /> Add
+                    </Button>
+                  </div>
                 </div>
+
                 <div className="text-center row-heading">
                   <Row>
-                    <Col>
+                    {/* <Col>
                       <b>ID</b>
+                    </Col> */}
+                    <Col>
+                      <b
+                      onClick={() => this.handleSort('firstName')}>Name</b>
                     </Col>
                     <Col>
-                      <b>Name</b>
+                      <b
+                      onClick={() => this.handleSort('email')}>Email</b>
                     </Col>
                     <Col>
-                      <b>Email</b>
-                    </Col>
-                    <Col>
-                      <b>Phone</b>
+                      <b
+                      onClick={() => this.handleSort('phone')}>Phone</b>
                     </Col>
 
                     <Col>
-                      <b>Gender</b>
+                      <b
+                      onClick={() => this.handleSort('gender')}>Gender</b>
                     </Col>
                     <Col>
-                      <b>username</b>
+                      <b
+                      onClick={() => this.handleSort('username')}>Username</b>
                     </Col>
                     <Col>
                       <b>Profile</b>
                     </Col>
                     <Col>
-                      <b>Edit</b>
+                      <b>Edit/Delete</b>
                     </Col>
                   </Row>
                 </div>
-                {this.filterData(this.state.data).map((itm, index) => {
+                {this.filterData(this.state.data).map((row, index) => {
                   return (
                     <>
                       <div className="row-details text-break">
-                        <Row
-                        // key={itm.id}
-                        // onClick={() => {
-                        //   this.handleShow(itm);
-                        // }}
-                        >
+                        <Row>
                           {/* <Col>{itm.id}</Col> */}
-                          <Col>{itm.firstName + " " + itm.lastName}</Col>
-                          <Col>{itm.email}</Col>
-                          <Col>{itm.phone}</Col>
-                          <Col>{itm.gender}</Col>
-                          <Col>{itm.username}</Col>
+                          <Col>{row.firstName + " " + row.lastName}</Col>
+                          <Col>{row.email}</Col>
+                          <Col>{row.phone}</Col>
+                          <Col>{row.gender}</Col>
+                          <Col>{row.username}</Col>
                           <Col className="table-img">
-                            <img src={itm.image} alt="profile-img" />
+                            <img src={row.image} alt="profile-img" />
                           </Col>
+
                           <Col>
+                            
+                              
                             <FaEdit
-                              onClick={() => this.handleEditShow(itm, index)}
+                            className="me-5"
+                            style={{marginTop: "17px"}}
+                              onClick={() => this.handleEditShow(row, index)}
                             />
+                            <FaTrash
+                            style={{marginTop: "17px"}}
+                              variant="danger"
+                              onClick={() => this.handleDelete(row._id)}
+                            
+                              
+                            />
+                            
                           </Col>
+                          
                         </Row>
                       </div>
                     </>
@@ -241,6 +347,7 @@ export default class ClassTable extends Component {
                 })}
               </Row>
             </Container>
+            {/* Edit Modal */}
             <Modal
               show={this.state.show}
               onHide={this.handleClose}
@@ -268,60 +375,105 @@ export default class ClassTable extends Component {
                     </Col>
 
                     <Col>
-                      <b>Email: </b>
-                      {this.state.modelitem.email}
+                      <Form>
+                        <Form.Group controlId="formFirstName">
+                          <Form.Label>Last Name</Form.Label>
+                          <Form.Control
+                            type="text"
+                            name="lastName"
+                            placeholder="Enter first name"
+                            value={this.state.editItem.lastName}
+                            onChange={this.handleEdit}
+                          />
+                        </Form.Group>
+                      </Form>
                     </Col>
 
                     <Col>
-                      <b>Phone: </b>
-                      {this.state.modelitem.phone}
-                    </Col>
-
-                    {/* <Col xs={6}>
-                      <b>Address: </b>
-                      {this.state.modelitem.address.address}
-                    </Col> */}
-                    {/* 
-                  <Col xs={6}>
-                    <b>Company/Address: </b>
-                    {modelitem.company.address.address}
-                  </Col> */}
-
-                    <Col>
-                      <strong>lastName: </strong>
-                      {this.state.modelitem.lastName}
+                      <Form>
+                        <Form.Group controlId="formFirstName">
+                          <Form.Label>Email</Form.Label>
+                          <Form.Control
+                            type="text"
+                            name="email"
+                            placeholder="Enter first name"
+                            value={this.state.editItem.email}
+                            onChange={this.handleEdit}
+                          />
+                        </Form.Group>
+                      </Form>
                     </Col>
 
                     {/*---------------------------------------------------------------*/}
 
                     <Col>
-                      <strong>lastName: </strong>
-                      {this.state.modelitem.lastName}
+                      <Form>
+                        <Form.Group controlId="formFirstName">
+                          <Form.Label>Phone</Form.Label>
+                          <Form.Control
+                            type="text"
+                            name="phone"
+                            placeholder="Enter first name"
+                            value={this.state.editItem.phone}
+                            onChange={this.handleEdit}
+                          />
+                        </Form.Group>
+                      </Form>
                     </Col>
 
                     <Col>
-                      <strong>lastName: </strong>
-                      {this.state.modelitem.lastName}
+                      <Form>
+                        <Form.Group controlId="formFirstName">
+                          <Form.Label>Gender</Form.Label>
+                          <Form.Control
+                            type="text"
+                            name="gender"
+                            placeholder="Enter first name"
+                            value={this.state.editItem.gender}
+                            onChange={this.handleEdit}
+                          />
+                        </Form.Group>
+                      </Form>
                     </Col>
 
                     <Col>
-                      <strong>lastName: </strong>
-                      {this.state.modelitem.lastName}
+                      <Form>
+                        <Form.Group controlId="formFirstName">
+                          <Form.Label>User Name</Form.Label>
+                          <Form.Control
+                            type="text"
+                            name="username"
+                            placeholder="Enter first name"
+                            value={this.state.editItem.username}
+                            onChange={this.handleEdit}
+                          />
+                        </Form.Group>
+                      </Form>
                     </Col>
 
                     <Col>
-                      <strong>lastName: </strong>
-                      {this.state.modelitem.lastName}
+                      <Form>
+                        <Form.Group controlId="formFirstName">
+                          <Form.Label>Profile</Form.Label>
+                          <Form.Control
+                            type="text"
+                            name="image"
+                            placeholder="Enter first name"
+                            // disabled
+                            value={this.state.editItem.image}
+                            onChange={this.handleEdit}
+                          />
+                        </Form.Group>
+                      </Form>
                     </Col>
-
                     {/* <Col className="table-img">
-                    <img src={modelitem.imlastName} alt="profile-img" />
+                    <img src={modelItem.imlastName} alt="profile-img" />
                   </Col> */}
                   </Row>
                 </Container>
               </Modal.Body>
               <Modal.Footer>
-                <Button variant="dark" onClick={this.handleEditClose}>
+                <Button variant="dark" onClick={this.handleClose}>
                   Close
                 </Button>
                 <Button variant="dark" onClick={this.handleEditSubmit}>
@@ -331,6 +483,84 @@ export default class ClassTable extends Component {
             </Modal>
           </>
         )}
+        {/* Add Modal */}
+        <Modal
+          show={this.state.showAddModal}
+          onHide={() => this.setState({ showAddModal: false })}
+        >
+          <Modal.Header closeButton>
+            <Modal.Title>Add new data</Modal.Title>
+          </Modal.Header>
+          <Modal.Body>
+            <Form>
+              <Form.Group controlId="formFirstName">
+                <Form.Label>First Name</Form.Label>
+                <Form.Control
+                  type="text"
+                  placeholder="Enter first name"
+                  name="firstName"
+                  onChange={this.handleAddChange}
+                />
+              </Form.Group>
+              <Form.Group controlId="formLastName">
+                <Form.Label>Last Name</Form.Label>
+                <Form.Control
+                  type="text"
+                  placeholder="Enter last name"
+                  name="lastName"
+                  onChange={this.handleAddChange}
+                />
+              </Form.Group>
+              <Form.Group controlId="formEmail">
+                <Form.Label>Email address</Form.Label>
+                <Form.Control
+                  type="email"
+                  placeholder="Enter email"
+                  name="email"
+                  onChange={this.handleAddChange}
+                />
+              </Form.Group>
+              <Form.Group controlId="formPhone">
+                <Form.Label>Phone</Form.Label>
+                <Form.Control
+                  type="text"
+                  placeholder="Enter phone number"
+                  name="phone"
+                  onChange={this.handleAddChange}
+                />
+              </Form.Group>
+              <Form.Group controlId="formPhone">
+                <Form.Label>User Name</Form.Label>
+                <Form.Control
+                  type="text"
+                  placeholder="Enter Username"
+                  name="username"
+                  onChange={this.handleAddChange}
+                />
+              </Form.Group>
+              <Form.Group controlId="formPhone">
+                <Form.Label>Gender</Form.Label>
+                <Form.Control
+                  type="text"
+                  placeholder="Gender"
+                  name="gender"
+                  onChange={this.handleAddChange}
+                />
+              </Form.Group>
+            </Form>
+          </Modal.Body>
+          <Modal.Footer>
+            <Button
+              variant="secondary"
+              onClick={() => this.setState({ showAddModal: false })}
+            >
+              Close
+            </Button>
+            <Button variant="primary" onClick={this.handleAddSubmit}>
+              Save
+            </Button>
+          </Modal.Footer>
+        </Modal>
       </>
     );
   }
